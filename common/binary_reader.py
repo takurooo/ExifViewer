@@ -24,11 +24,11 @@ class BinaryReader:
 
         self.start_fp = self.f.tell()
 
-    def remain_size(self):
+    def num_bytes_left(self):
         return self.file_size - (self.f.tell() - self.start_fp)
 
     def seek_to_end(self):
-        self.f.seek(self.remain_size(), 1)
+        self.f.seek(self.file_size, 0)
 
     def seek(self, offset, whence=0):
         self.f.seek(offset, whence)
