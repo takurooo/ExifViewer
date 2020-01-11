@@ -3,10 +3,9 @@
 # -----------------------------------
 import os
 from collections import OrderedDict
-
+import imghdr
 from common.exif_defines import TagType, TAG_TYPE_SIZE, TAG_TYPE_NAME, TAG_NAME, GPS_TAG_NAME
 from common.binary_reader import BinaryReader
-
 
 # -----------------------------------
 # define
@@ -50,10 +49,30 @@ class Tag:
     val = None
 
 
+def find_app1(binreader):
+    soi = binreader.read_16bits()
+    assert soi == 0xFFD8
+    app1 = 0xFFE1
+    while 4 < binreader.num_bytes_left():
+        marker = binreader.read_16bits()
+        size = binreader.read_16bits() - 2
+        if marker == app1:
+            id = binreader.read_null_terminated()[:4]
+            _ = binreader.read_8bits()
+            assert id == 'Exif'
+            return True
+    else:
+        return False
+
+
 class ExifReader:
     def __init__(self, file_path):
         self.file_path = file_path
         self.binreader = BinaryReader(file_path)
+
+        if imghdr.what(self.file_path) == 'jpeg':
+            if not find_app1(self.binreader):
+                ValueError('Exif not found {}'.format(self.file_path))
 
         self.tiff_header = self._find_tiff_header()
         if self.tiff_header is None:
@@ -79,7 +98,7 @@ class ExifReader:
     def _find_tiff_header(self):
         tiff_header = TiffHeader()
 
-        while self.binreader.remain_size() >= 4:
+        while self.binreader.num_bytes_left() >= 4:
             byteorder = self.binreader.read_16bits()
 
             if byteorder == TiffHeader.BYTEORDER_LITTLE:
@@ -185,7 +204,7 @@ class ExifReader:
 
         tag.name = tag_name_dic.get(tag.id, tag.id)
         tag.typesize = TAG_TYPE_SIZE.get(tag.type, None)
-        assert tag.typesize is not None, 'tag type invalid {}, start pos {}'.format(tag.type,tag.start_pos)
+        assert tag.typesize is not None, 'tag type invalid {}, start pos {}'.format(tag.type, tag.start_pos)
 
         tag.typename = TAG_TYPE_NAME.get(tag.type, tag.type)
         total_size_bytes = tag.typesize * tag.cnt
@@ -211,8 +230,10 @@ class ExifReader:
                 size_bits = tag.typesize // 2 * 8
                 tag.val = []
                 for _ in range(tag.cnt):
-                    numerator = self.binreader.read_nbits(size_bits, byteorder=self.tiff_header.byteorder, signed=is_signed)
-                    denominator = self.binreader.read_nbits(size_bits, byteorder=self.tiff_header.byteorder, signed=is_signed)
+                    numerator = self.binreader.read_nbits(size_bits, byteorder=self.tiff_header.byteorder,
+                                                          signed=is_signed)
+                    denominator = self.binreader.read_nbits(size_bits, byteorder=self.tiff_header.byteorder,
+                                                            signed=is_signed)
                     tag.val.append((numerator, denominator))
             else:
                 if tag.name in BYTES_TYPE_TGAS:
