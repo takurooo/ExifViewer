@@ -1,6 +1,5 @@
-<div align="center"><img src="
-https://user-images.githubusercontent.com/35373553/72657191-c2198300-39e4-11ea-9c8e-d4d38c0ff1d2.png" width="420">
-</div>
+![Exif viewer logo](
+https://user-images.githubusercontent.com/35373553/72657191-c2198300-39e4-11ea-9c8e-d4d38c0ff1d2.png)
 
 -------------------------------------------------------
 
