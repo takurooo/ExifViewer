@@ -5,15 +5,15 @@ import os
 import sys
 import argparse
 
-from PySide2.QtWidgets import QApplication, QMainWindow, QAction, QWidget
+from PySide2.QtWidgets import QApplication, QMainWindow, QAction, QWidget, QStyle
 from PySide2.QtWidgets import QStackedWidget, QSplitter, QTextEdit, QTreeWidget, QTreeWidgetItem
 from PySide2.QtWidgets import QHBoxLayout, qApp, QFileDialog
 from PySide2.QtGui import QTextCursor, QFont, QColor, QIcon
-from PySide2.QtCore import QSize, Qt
+from PySide2.QtCore import QSize, Qt, Slot
 
 from common.exif_reader import ExifReader
 
-
+print("start exif_viewer")
 # -----------------------------------
 # define
 # -----------------------------------
@@ -53,7 +53,7 @@ def qt_util_reset_text_edit_cursor(qw_text_edit):
 
 def qt_util_append_text_edit(qw_text_edit, tag, head=False, display_max_len=100):
     if head:
-        qw_text_edit.setTextColor(QColor(0, 0, 255, 128))
+        qw_text_edit.setTextColor(QColor(0, 0, 255, 255))
         line = '{:<4}\t{:<4}\t{:<25}\t{}'.format('file_pos', 'tag_id', 'tag_name', 'val')
     else:
         if display_max_len < len(str(tag.val)):
@@ -88,10 +88,10 @@ class ExifViewer(QMainWindow):
         self.exif_reader = exif_reader
         ifds = self.exif_reader.get_exif()
 
-        self.qw_tree = QTreeWidget()
+        self.qw_tree = QTreeWidget(self)
         qt_util_init_tree(self.qw_tree, header_list=['ifd_name'])
 
-        self.qw_stack = QStackedWidget()
+        self.qw_stack = QStackedWidget(self)
         self.tree_type_to_stack_idx = {}
         for tree_item_type, (ifd_name, ifd) in enumerate(ifds.items()):
             # -----------------------
@@ -103,7 +103,7 @@ class ExifViewer(QMainWindow):
             # -----------------------
             # text_editにexif情報を書き込んでstacked_widgetに登録する.
             # -----------------------
-            qw_text_edit = QTextEdit()
+            qw_text_edit = QTextEdit(self)
             qt_util_init_text_edit(qw_text_edit)
             qt_util_append_text_edit(qw_text_edit, None, head=True)
             for _, tag in ifd.items():
@@ -113,7 +113,7 @@ class ExifViewer(QMainWindow):
             idx = self.qw_stack.addWidget(qw_text_edit)
             self.tree_type_to_stack_idx[tree_item_type] = idx
         else:
-            self.qw_tree.itemClicked.connect(self._slot_tree_item_clicked)
+            self.qw_tree.itemClicked.connect(self._tree_item_clicked)
 
         # -----------------------
         # widgetをlayoutに登録する.
@@ -124,27 +124,25 @@ class ExifViewer(QMainWindow):
 
         self.show()  # widgetを表示する.
 
-    def _save_text(self):
-        filename = QFileDialog.getSaveFileName(self, '名前を付けて保存')
-        out_path = filename[0]
-        if out_path:
-            self.exif_reader.save_log(out_path)
-
     def _make_toolbar(self):
-        action_to_text = QAction(QIcon(os.path.join('icon', 'text.png')), 'save', self)
-        action_to_text.triggered.connect(self._save_text)
-        action_ext = QAction(QIcon(os.path.join('icon', 'exit.png')), 'exit', self)
-        action_ext.triggered.connect(qApp.quit)
+        # action_to_text = QAction(QIcon(os.path.join('icon', 'text.png')), 'save', self)
+        save_icon = QApplication.style().standardIcon(QStyle.SP_DialogSaveButton)
+        save_action = QAction(icon=save_icon, text='save', parent=self)
+        save_action.triggered.connect(self._save_text)
+
+        exit_icon = QApplication.style().standardIcon(QStyle.SP_DialogCloseButton)
+        exit_action = QAction(icon=exit_icon, text='exit', parent=self)
+        exit_action.triggered.connect(self._quit)
 
         # ツールバー作成
         self.toolbar = self.addToolBar('tool bar')
-        self.toolbar.setIconSize(QSize(25, 25))
-        self.toolbar.setFixedHeight(25)
-        self.toolbar.addAction(action_to_text)
-        self.toolbar.addAction(action_ext)
+        self.toolbar.setIconSize(QSize(35, 35))
+        self.toolbar.setFixedHeight(35)
+        self.toolbar.addAction(save_action)
+        self.toolbar.addAction(exit_action)
 
     def _make_layout(self, widgets):
-        qw_splitter = QSplitter()
+        qw_splitter = QSplitter(self)
         for widget in widgets:
             qw_splitter.addWidget(widget)
         qw_splitter.setSizes([self.WINDOW_SIZE['width'] * 0.1, self.WINDOW_SIZE['width'] * 0.9])
@@ -160,18 +158,29 @@ class ExifViewer(QMainWindow):
         # MainWindowのCentral領域にWidgetを設定
         self.setCentralWidget(qw_splitter)
 
-    def _slot_tree_item_clicked(self, item, column):
+    @Slot()
+    def _tree_item_clicked(self, item, column):
         self.qw_stack.setCurrentIndex(self.tree_type_to_stack_idx[item.type()])
         current_text_edit = self.qw_stack.currentWidget()
         qt_util_reset_text_edit_cursor(current_text_edit)
 
+    @Slot()
+    def _save_text(self):
+        filename = QFileDialog.getSaveFileName(self, '名前を付けて保存')
+        out_path = filename[0]
+        if out_path:
+            self.exif_reader.save_log(out_path)
+
+    @Slot()
+    def _quit(self):
+        qApp.quit()
 
 # -----------------------------------
 # main
 # -----------------------------------
 def main(args):
     exif_reader = ExifReader(args.path)
-    exif_reader.print_log()
+    # exif_reader.print_log()
 
     app = QApplication(sys.argv)
 
